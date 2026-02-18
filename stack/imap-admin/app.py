@@ -6,7 +6,7 @@ import tempfile
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from functools import wraps
 from pathlib import Path
 from typing import Optional
@@ -74,6 +74,24 @@ def _duration_fmt(started: Optional[str], finished: Optional[str]) -> str:
 
 
 app.jinja_env.globals["duration_fmt"] = _duration_fmt
+
+
+BRT = timezone(timedelta(hours=-4))  # America/Cuiaba (UTC-4)
+
+
+def _fmt_brt(iso_str: Optional[str]) -> Optional[str]:
+    """Convert UTC ISO string to Brazilian Portuguese date/time in BRT (UTC-4)."""
+    if not iso_str:
+        return None
+    try:
+        dt = datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        dt_brt = dt.astimezone(BRT)
+        return dt_brt.strftime("%d/%m/%Y %H:%M")
+    except (ValueError, TypeError):
+        # fallback: just crop the raw string
+        return iso_str[:16].replace("T", " ")
 
 db_lock = threading.Lock()
 users_file_lock = threading.Lock()
@@ -890,7 +908,7 @@ def index():
         a = dict(row)
         a["maildir_size"] = maildir_size_fmt(a["email"])
         raw_sync = last_sync_map.get(a["id"])
-        a["last_sync"] = raw_sync[:16].replace("T", " ") if raw_sync else None
+        a["last_sync"] = _fmt_brt(raw_sync) if raw_sync else None
         accounts.append(a)
 
     sources_raw = db.execute(
@@ -907,7 +925,13 @@ def index():
         ORDER BY s.id DESC
         """
     ).fetchall()
-    sources = [dict(row) for row in sources_raw]
+    sources = []
+    for row in sources_raw:
+        s = dict(row)
+        s.pop("password1_encrypted", None)  # never send to frontend
+        if s.get("last_sync_at"):
+            s["last_sync_at"] = _fmt_brt(s["last_sync_at"])
+        sources.append(s)
     runs = db.execute(
         """
         SELECT r.*, s.source_name, a.email AS local_email
@@ -932,9 +956,9 @@ def index():
 @login_required
 def logs_page():
     db = get_db()
-    runs = db.execute(
+    runs_raw = db.execute(
         """
-        SELECT r.*, s.source_name, s.source_host, a.email AS local_email
+        SELECT r.*, s.source_name, s.host1, a.email AS local_email
         FROM source_runs r
         JOIN source_accounts s ON s.id = r.source_id
         JOIN local_accounts a ON a.id = r.local_account_id
@@ -942,6 +966,12 @@ def logs_page():
         LIMIT 200
         """
     ).fetchall()
+    runs = [dict(row) for row in runs_raw]
+    for r in runs:
+        if r.get("started_at"):
+            r["started_at_fmt"] = _fmt_brt(r["started_at"])
+        else:
+            r["started_at_fmt"] = "—"
     return render_template("logs.html", runs=runs)
 
 

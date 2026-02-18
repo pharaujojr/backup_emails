@@ -59,7 +59,7 @@
         <tbody>
           {% for r in runs %}
           <tr>
-            <td class="td-mono">{{ r.started_at[:16].replace('T',' ') if r.started_at else '—' }}</td>
+            <td class="td-mono">{{ r.started_at_fmt or '—' }}</td>
             <td>{{ r.local_email }}</td>
             <td>{{ r.source_name }}</td>
             <td>
