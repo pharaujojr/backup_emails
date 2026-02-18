@@ -352,8 +352,9 @@
 <!-- ══════════════════════════════════ DATA ══ -->
 <script>
 // All data injected safely via JSON — never inside onclick attributes
-const ACCOUNTS = {{ accounts|tojson }};
-const SOURCES  = {{ sources|tojson }};
+const ACCOUNTS    = {{ accounts|tojson }};
+const SOURCES     = {{ sources|tojson }};
+const RUNNING_IDS = {{ running_source_ids|tojson }};
 </script>
 
 <!-- ══════════════════════════════════ JS ══ -->
@@ -441,9 +442,14 @@ function renderSources(sources) {
       <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
         <span class="badge ${statusClass}">${escHtml(statusLabel)}</span>
         <div class="source-actions">
+          ${RUNNING_IDS.includes(s.id) ? `
+          <form method="post" action="/sources/${s.id}/kill" style="display:inline"
+                onsubmit="return confirm('Interromper sync em andamento?')">
+            <button class="btn btn-warn btn-sm" type="submit">⏹ Parar</button>
+          </form>` : `
           <form method="post" action="/sources/${s.id}/import-now" style="display:inline">
             <button class="btn btn-primary btn-sm" type="submit">Importar</button>
-          </form>
+          </form>`}
           <button class="btn btn-ghost btn-sm" type="button"
                   onclick="openEditSource(${s.id})">Editar</button>
           <form method="post" action="/sources/${s.id}/delete"

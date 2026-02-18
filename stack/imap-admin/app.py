@@ -98,6 +98,8 @@ users_file_lock = threading.Lock()
 executor = ThreadPoolExecutor(max_workers=4)
 running_sources = set()
 running_sources_lock = threading.Lock()
+running_exec_ids: dict = {}  # source_id -> (exec_id, user1) for kill support
+running_exec_ids_lock = threading.Lock()
 
 scheduler = BackgroundScheduler(
     jobstores={"default": SQLAlchemyJobStore(url=f"sqlite:///{DATABASE}")},
@@ -761,6 +763,9 @@ def run_imapsync_job(source_id, trigger_type):
         container = get_running_container(client, IMAPSYNC_CONTAINER, wait_timeout=45)
         exec_id = client.api.exec_create(container.id, cmd=cmd)["Id"]
 
+        with running_exec_ids_lock:
+            running_exec_ids[source_id] = (exec_id, source["user1"])
+
         with open(log_file_path, "w", encoding="utf-8") as log_file:
             log_file.write(f"# {utcnow_iso()} {cmd_redacted}\n")
             stream = client.api.exec_start(exec_id, stream=True, demux=True)
@@ -831,6 +836,8 @@ def run_imapsync_job(source_id, trigger_type):
         conn.close()
         with running_sources_lock:
             running_sources.discard(source_id)
+        with running_exec_ids_lock:
+            running_exec_ids.pop(source_id, None)
 
 
 @app.before_request
@@ -952,6 +959,9 @@ def index():
         else:
             s["next_run"] = None
         sources.append(s)
+
+    with running_sources_lock:
+        running_source_ids = list(running_sources)
     runs = db.execute(
         """
         SELECT r.*, s.source_name, a.email AS local_email
@@ -967,6 +977,7 @@ def index():
         accounts=accounts,
         sources=sources,
         runs=runs,
+        running_source_ids=running_source_ids,
         roundcube_test_url=ROUND_CUBE_TEST_URL,
         roundcube_prod_url=ROUND_CUBE_PROD_URL,
     )
@@ -1246,6 +1257,37 @@ def import_now(source_id):
         flash("Importação iniciada", "success")
     else:
         flash("Já existe uma importação em execução para essa source", "error")
+    return redirect(url_for("index"))
+
+
+@app.post("/sources/<int:source_id>/kill")
+@login_required
+def kill_source(source_id):
+    """Envia SIGKILL ao processo imapsync de uma source travada."""
+    with running_sources_lock:
+        is_running = source_id in running_sources
+    if not is_running:
+        flash("Sync não está em execução.", "error")
+        return redirect(url_for("index"))
+
+    with running_exec_ids_lock:
+        entry = running_exec_ids.get(source_id)
+
+    user1 = entry[1] if entry else None
+    killed = False
+    try:
+        client = docker.from_env()
+        container = client.containers.get(IMAPSYNC_CONTAINER)
+        if user1:
+            result = container.exec_run(["pkill", "-9", "-f", f"imapsync.*{user1}"])
+            killed = result.exit_code in (0, 1)  # 1 = no process found (already dead)
+        if not killed:
+            # Fallback: kill all imapsync processes in the container
+            container.exec_run(["pkill", "-9", "imapsync"])
+        flash("Sinal de interrupção enviado ao imapsync.", "success")
+    except Exception as exc:
+        flash(f"Erro ao interromper sync: {exc}", "error")
+
     return redirect(url_for("index"))
 
 

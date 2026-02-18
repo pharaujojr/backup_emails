@@ -77,6 +77,7 @@ body {
 .btn-danger   { background: var(--danger); color: #fff; }
 .btn-danger:hover { background: var(--danger-h); }
 .btn-warn     { background: var(--warn); color: #fff; }
+.btn-warn:hover { background: #d35400; }
 .btn-sm       { padding: 4px 10px; font-size: 12px; }
 .btn:disabled { opacity: .5; cursor: not-allowed; }
 
