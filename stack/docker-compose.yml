@@ -1,0 +1,104 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: roundcube_db
+    environment:
+      POSTGRES_DB: roundcube
+      POSTGRES_USER: roundcube
+      POSTGRES_PASSWORD: ${ROUNDCUBE_DB_PASSWORD}
+    volumes:
+      - /home/paulo/PROJETOS/MAIL_SERVER/roundcube-db:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  dovecot:
+    image: dovecot/dovecot:latest
+    container_name: mailarchive_dovecot
+    volumes:
+      - /home/paulo/PROJETOS/MAIL_SERVER/mail:/srv/vmail
+      - ./dovecot-conf/auth.conf:/etc/dovecot/conf.d/auth.conf:ro
+      - ./dovecot-conf/99-archive.conf:/etc/dovecot/conf.d/99-archive.conf:ro
+      - /home/paulo/PROJETOS/MAIL_SERVER/dovecot-users/users:/etc/dovecot/users:ro
+    restart: unless-stopped
+
+  roundcube:
+    image: roundcube/roundcubemail:latest
+    container_name: mailarchive_roundcube
+    depends_on:
+      - db
+      - dovecot
+    ports:
+      - "8080:80"
+    environment:
+      ROUNDCUBEMAIL_DB_TYPE: pgsql
+      ROUNDCUBEMAIL_DB_HOST: db
+      ROUNDCUBEMAIL_DB_NAME: roundcube
+      ROUNDCUBEMAIL_DB_USER: roundcube
+      ROUNDCUBEMAIL_DB_PASSWORD: ${ROUNDCUBE_DB_PASSWORD}
+
+      # IMAP points to dovecot container (internal docker network)
+      ROUNDCUBEMAIL_DEFAULT_HOST: dovecot
+      ROUNDCUBEMAIL_DEFAULT_PORT: 31143
+
+      # Disable SMTP (archive/reading only)
+      ROUNDCUBEMAIL_SMTP_SERVER: ""
+      ROUNDCUBEMAIL_SMTP_PORT: "0"
+
+      ROUNDCUBEMAIL_DES_KEY: ${ROUNDCUBE_DES_KEY}
+      ROUNDCUBEMAIL_SKIN: elastic
+    volumes:
+      - /home/paulo/PROJETOS/MAIL_SERVER/roundcube-config:/var/roundcube/config
+    restart: unless-stopped
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: mailarchive_cloudflared
+    depends_on:
+      - roundcube
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
+    restart: unless-stopped
+
+  # Optional helper container for running imapsync on-demand
+  imapsync:
+    image: gilleslamiral/imapsync:latest
+    container_name: mailarchive_imapsync
+    entrypoint: ["sleep", "infinity"]
+    volumes:
+      - /home/paulo/PROJETOS/MAIL_SERVER/imapsync-logs:/logs
+      - /home/paulo/PROJETOS/MAIL_SERVER/stack/run-imapsync.sh:/run-imapsync.sh:ro
+    restart: unless-stopped
+
+  imap_admin:
+    build:
+      context: ./imap-admin
+    container_name: mailarchive_imap_admin
+    depends_on:
+      - dovecot
+      - roundcube
+      - imapsync
+    ports:
+      - "8081:5000"
+    environment:
+      IMAP_ADMIN_DB: /data/imap_admin.db
+      IMAP_ADMIN_RUN_TIMEOUT: "7200"
+      MASTER_KEY: ${MASTER_KEY}
+      FLASK_SECRET_KEY: ${FLASK_SECRET_KEY}
+      ADMIN_USER: ${ADMIN_USER}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      DOVECOT_USERS_FILE: /data/dovecot-users/users
+      DOVECOT_USERS_FILE_MODE: "0644"
+      MAIL_ROOT: /data/mail
+      IMAPSYNC_LOG_ROOT: /data/imapsync-logs
+      IMAPSYNC_CONTAINER: mailarchive_imapsync
+      DOVECOT_IMAP_HOST: mailarchive_dovecot
+      DOVECOT_IMAP_PORT: "31143"
+      ROUNDCUBE_TEST_URL: ${ROUNDCUBE_TEST_URL}
+      ROUNDCUBE_PROD_URL: ${ROUNDCUBE_PROD_URL}
+    volumes:
+      - /home/paulo/PROJETOS/MAIL_SERVER/imap-admin-data:/data
+      - /home/paulo/PROJETOS/MAIL_SERVER/dovecot-users:/data/dovecot-users
+      - /home/paulo/PROJETOS/MAIL_SERVER/mail:/data/mail
+      - /home/paulo/PROJETOS/MAIL_SERVER/imapsync-logs:/data/imapsync-logs
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped

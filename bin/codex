@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+CODEX_HOME_HOST="/home/paulo/PROJETOS/MAIL_SERVER/codex-home"
+IMAGE="solturi/codex-cli:latest"
+
+docker run --rm -it \
+  -e TERM \
+  -v "${CODEX_HOME_HOST}":/root/.codex \
+  -v "${PWD}":/work -w /work \
+  "${IMAGE}" "$@"

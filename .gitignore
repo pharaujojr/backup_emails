@@ -1,0 +1,41 @@
+# Dados de email (Maildir)
+mail/
+
+# Banco de dados PostgreSQL
+roundcube-db/
+
+# Arquivos de usuários do Dovecot (senhas em produção)
+dovecot-users/users
+dovecot-users/*.bak.*
+
+# Dados do imap-admin (banco SQLite, logs, mails)
+imap-admin-data/
+
+# Logs do imapsync
+imapsync-logs/
+
+# Config do Roundcube (pode conter segredos)
+roundcube-config/
+
+# Backups de conf gerados pelos scripts
+stack/dovecot-conf/*.bak.*
+
+# Variáveis de ambiente
+.env
+stack/.env
+
+# Codex home
+codex-home/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+
+# Misc
+*.swp
+*.swo
+.DS_Store
