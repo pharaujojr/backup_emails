@@ -228,6 +228,11 @@ textarea { resize: vertical; min-height: 60px; }
   text-transform: uppercase; letter-spacing: .08em; margin: 20px 0 10px;
 }
 
+/* ── Add-source details/summary ───────────────────────── */
+.add-source-details { margin-top: 4px; }
+.add-source-details summary::-webkit-details-marker { display: none; }
+.add-source-details[open] > summary { color: var(--primary); }
+
 /* ── Login page ───────────────────────────────────────── */
 .login-wrap {
   min-height: 100vh; display: flex;

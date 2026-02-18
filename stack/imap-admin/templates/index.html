@@ -9,7 +9,6 @@
 <body>
 <div class="app">
 
-  <!-- Flash messages -->
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% for category, message in messages %}
       <div class="flash-bar {{ category }}">{{ message }}</div>
@@ -34,8 +33,6 @@
   </header>
 
   <main class="main">
-
-    <!-- Accounts section -->
     <div class="section-header">
       <span class="section-title">Contas locais</span>
       <button class="btn btn-primary btn-sm" onclick="openModal('modal-new-account')">+ Nova conta</button>
@@ -47,21 +44,12 @@
     <div class="accounts-grid">
       {% for a in accounts %}
       <div class="account-card {{ '' if a.enabled else 'disabled' }}"
-           onclick="openAccountModal({{ a|tojson }}, {{ sources|selectattr('local_account_id','eq', a.id)|list|tojson }})">
+           onclick="openAccountModal({{ a.id }})">
         <div class="account-card-email">{{ a.email }}</div>
         <div class="account-card-meta">
-          <div class="meta-row">
-            <span>Armazenamento</span>
-            <strong>{{ a.maildir_size }}</strong>
-          </div>
-          <div class="meta-row">
-            <span>Ultimo sync</span>
-            <strong>{{ a.last_sync or '-' }}</strong>
-          </div>
-          <div class="meta-row">
-            <span>Sources</span>
-            <strong>{{ a.source_count }}</strong>
-          </div>
+          <div class="meta-row"><span>Armazenamento</span><strong>{{ a.maildir_size }}</strong></div>
+          <div class="meta-row"><span>Ultimo sync</span><strong>{{ a.last_sync or '-' }}</strong></div>
+          <div class="meta-row"><span>Sources</span><strong>{{ a.source_count }}</strong></div>
           <div class="meta-row">
             <span>Status</span>
             <span class="badge {{ 'badge-ok' if a.enabled else 'badge-off' }}">{{ 'ativo' if a.enabled else 'inativo' }}</span>
@@ -71,13 +59,10 @@
       {% endfor %}
     </div>
     {% endif %}
-
   </main>
 </div>
 
-<!-- ═══════════════════════════════════════════════════
-     MODAL: Nova conta
-════════════════════════════════════════════════════ -->
+<!-- ══════════════════════════════════ MODAL: Nova conta ══ -->
 <div class="modal-overlay" id="modal-new-account">
   <div class="modal">
     <div class="modal-header">
@@ -102,9 +87,7 @@
   </div>
 </div>
 
-<!-- ═══════════════════════════════════════════════════
-     MODAL: Detalhes da conta (gerado via JS)
-════════════════════════════════════════════════════ -->
+<!-- ══════════════════════════════════ MODAL: Conta ══ -->
 <div class="modal-overlay" id="modal-account">
   <div class="modal modal-lg">
     <div class="modal-header">
@@ -117,7 +100,7 @@
         <button class="tab-btn active" onclick="switchTab(this,'tab-info')">Informações</button>
         <button class="tab-btn" onclick="switchTab(this,'tab-password')">Senha</button>
         <button class="tab-btn" onclick="switchTab(this,'tab-sources')">Sources</button>
-        <button class="tab-btn" onclick="switchTab(this,'tab-danger')">Acoes</button>
+        <button class="tab-btn" onclick="switchTab(this,'tab-danger')">Ações</button>
       </div>
 
       <!-- Tab: Info -->
@@ -136,7 +119,7 @@
             <input id="ai-size" type="text" readonly style="opacity:.6"/>
           </div>
           <div class="field">
-            <label class="field-label">Ultimo sync</label>
+            <label class="field-label">Último sync</label>
             <input id="ai-sync" type="text" readonly style="opacity:.6"/>
           </div>
           <div class="field span2">
@@ -145,11 +128,11 @@
           </div>
         </div>
         <hr class="modal-sep"/>
-        <p style="font-size:12px;color:var(--muted)">Para validar login no Dovecot:</p>
+        <p style="font-size:12px;color:var(--muted)">Validar login no Dovecot:</p>
         <form id="form-validate" method="post" style="margin-top:10px">
           <div style="display:flex;gap:8px">
             <input name="validate_password" type="password" placeholder="Informe a senha para validar" style="flex:1"/>
-            <button type="submit" class="btn btn-ghost btn-sm">Validar login</button>
+            <button type="submit" class="btn btn-ghost btn-sm">Validar</button>
           </div>
         </form>
       </div>
@@ -170,7 +153,7 @@
             <form id="form-set-pwd" method="post">
               <div class="form-grid">
                 <div class="field span2">
-                  <label class="field-label">Nova senha (minimo 12 caracteres)</label>
+                  <label class="field-label">Nova senha (mínimo 12 caracteres)</label>
                   <input name="new_password" type="password" placeholder="Nova senha" required minlength="12"/>
                 </div>
               </div>
@@ -186,74 +169,81 @@
       <div class="tab-pane" id="tab-sources">
         <div id="sources-list"></div>
         <hr class="modal-sep"/>
-        <p class="divider-label">Nova source IMAP</p>
-        <form id="form-new-source" method="post" action="/sources">
-          <input type="hidden" id="ns-account-id" name="local_account_id"/>
-          <div class="form-grid">
-            <div class="field">
-              <label class="field-label">Nome da source</label>
-              <input name="source_name" placeholder="hostgator-principal" required/>
-            </div>
-            <div class="field">
-              <label class="field-label">Host IMAP origem</label>
-              <input name="host1" placeholder="mail.servidor.com.br" required/>
-            </div>
-            <div class="field">
-              <label class="field-label">Porta</label>
-              <input name="port1" type="number" value="993" required/>
-            </div>
-            <div class="field">
-              <label class="field-label">Seguranca</label>
-              <select name="security1">
-                <option value="ssl" selected>SSL</option>
-                <option value="tls">TLS</option>
-                <option value="none">NONE</option>
-              </select>
-            </div>
-            <div class="field">
-              <label class="field-label">Usuario origem</label>
-              <input name="user1" placeholder="usuario@dominio.com" required/>
-            </div>
-            <div class="field">
-              <label class="field-label">Senha origem</label>
-              <input name="password1" type="password" placeholder="Senha" required/>
-            </div>
-            <div class="field span2">
-              <label class="field-label">Include folders (opcional, virgula ou linha)</label>
-              <input name="include_folders" placeholder="INBOX, Sent"/>
-            </div>
-            <div class="field span2">
-              <label class="field-label">Exclude regex (opcional)</label>
-              <input name="exclude_folders" placeholder="Spam|Trash"/>
-            </div>
-            <div class="field span2">
-              <label class="field-label">Parametros extras (opcional)</label>
-              <input name="extra_args" placeholder="--maxsize 5000000"/>
-            </div>
-            <div class="field span2">
-              <label class="checkbox-row">
-                <input type="checkbox" name="schedule_enabled"/> Habilitar agendamento
-              </label>
-            </div>
-            <div class="field">
-              <label class="field-label">Tipo de agendamento</label>
-              <select name="schedule_mode">
-                <option value="interval" selected>Intervalo (minutos)</option>
-                <option value="cron">Cron</option>
-              </select>
-            </div>
-            <div class="field">
-              <label class="field-label">Valor</label>
-              <input name="schedule_value" value="360" placeholder="360 ou 0 */6 * * *" required/>
-            </div>
-          </div>
+        <details class="add-source-details">
+          <summary class="btn btn-ghost btn-sm" style="list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:6px">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Adicionar source
+          </summary>
           <div style="margin-top:14px">
-            <button type="submit" class="btn btn-primary btn-sm">Salvar source</button>
+            <form id="form-new-source" method="post" action="/sources">
+              <input type="hidden" id="ns-account-id" name="local_account_id"/>
+              <div class="form-grid">
+                <div class="field">
+                  <label class="field-label">Nome da source</label>
+                  <input name="source_name" placeholder="hostgator-principal" required/>
+                </div>
+                <div class="field">
+                  <label class="field-label">Host IMAP origem</label>
+                  <input name="host1" placeholder="mail.servidor.com.br" required/>
+                </div>
+                <div class="field">
+                  <label class="field-label">Porta</label>
+                  <input name="port1" type="number" value="993" required/>
+                </div>
+                <div class="field">
+                  <label class="field-label">Segurança</label>
+                  <select name="security1">
+                    <option value="ssl" selected>SSL</option>
+                    <option value="tls">TLS</option>
+                    <option value="none">Nenhuma</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label class="field-label">Usuário origem</label>
+                  <input name="user1" placeholder="usuario@dominio.com" required/>
+                </div>
+                <div class="field">
+                  <label class="field-label">Senha origem</label>
+                  <input name="password1" type="password" placeholder="Senha" required/>
+                </div>
+                <div class="field span2">
+                  <label class="field-label">Include folders (vírgula ou linha)</label>
+                  <input name="include_folders" placeholder="INBOX, Sent"/>
+                </div>
+                <div class="field span2">
+                  <label class="field-label">Exclude regex</label>
+                  <input name="exclude_folders" placeholder="Spam|Trash"/>
+                </div>
+                <div class="field span2">
+                  <label class="field-label">Parâmetros extras</label>
+                  <input name="extra_args" placeholder="--maxsize 5000000"/>
+                </div>
+                <div class="field span2">
+                  <label class="checkbox-row">
+                    <input type="checkbox" name="schedule_enabled"/> Habilitar agendamento
+                  </label>
+                </div>
+                <div class="field">
+                  <label class="field-label">Tipo de agendamento</label>
+                  <select name="schedule_mode">
+                    <option value="interval" selected>Intervalo (minutos)</option>
+                    <option value="cron">Cron</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label class="field-label">Valor</label>
+                  <input name="schedule_value" value="360" placeholder="360 ou 0 */6 * * *" required/>
+                </div>
+              </div>
+              <div style="margin-top:14px">
+                <button type="submit" class="btn btn-primary btn-sm">Salvar source</button>
+              </div>
+            </form>
           </div>
-        </form>
+        </details>
       </div>
 
-      <!-- Tab: Acoes / Perigo -->
+      <!-- Tab: Ações -->
       <div class="tab-pane" id="tab-danger">
         <div style="display:flex;flex-direction:column;gap:14px">
           <div style="background:var(--surface2);border-radius:var(--radius);padding:14px">
@@ -265,21 +255,19 @@
           </div>
           <div style="background:rgba(192,57,43,.08);border:1px solid rgba(192,57,43,.2);border-radius:var(--radius);padding:14px">
             <p style="font-size:13px;font-weight:500;margin-bottom:6px;color:#e74c3c">Remover conta do painel</p>
-            <p style="font-size:12px;color:var(--muted);margin-bottom:10px">Remove o acesso e as sources do banco. O Maildir no servidor nao e apagado.</p>
-            <form id="form-delete" method="post" onsubmit="return confirm('Remover conta do painel? O Maildir sera preservado.')">
+            <p style="font-size:12px;color:var(--muted);margin-bottom:10px">Remove o acesso e as sources do banco. O Maildir no servidor não é apagado.</p>
+            <form id="form-delete" method="post" onsubmit="return confirm('Remover conta do painel? O Maildir será preservado.')">
               <button type="submit" class="btn btn-danger btn-sm">Remover do painel</button>
             </form>
           </div>
         </div>
       </div>
 
-    </div><!-- modal-body -->
+    </div><!-- /modal-body -->
   </div>
 </div>
 
-<!-- ═══════════════════════════════════════════════════
-     MODAL: Editar source (gerado via JS)
-════════════════════════════════════════════════════ -->
+<!-- ══════════════════════════════════ MODAL: Editar source ══ -->
 <div class="modal-overlay" id="modal-edit-source">
   <div class="modal modal-lg">
     <div class="modal-header">
@@ -302,20 +290,20 @@
             <input id="es-port" name="port1" type="number" required/>
           </div>
           <div class="field">
-            <label class="field-label">Seguranca</label>
+            <label class="field-label">Segurança</label>
             <select id="es-sec" name="security1">
               <option value="ssl">SSL</option>
               <option value="tls">TLS</option>
-              <option value="none">NONE</option>
+              <option value="none">Nenhuma</option>
             </select>
           </div>
           <div class="field">
-            <label class="field-label">Usuario origem</label>
+            <label class="field-label">Usuário origem</label>
             <input id="es-user" name="user1" required/>
           </div>
           <div class="field">
-            <label class="field-label">Nova senha origem (deixe vazio para manter)</label>
-            <input id="es-pass" name="password1" type="password" placeholder="Preencha so se quiser trocar"/>
+            <label class="field-label">Nova senha (vazio = manter)</label>
+            <input id="es-pass" name="password1" type="password" placeholder="Preencha só se quiser trocar"/>
           </div>
           <div class="field span2">
             <label class="field-label">Include folders</label>
@@ -326,7 +314,7 @@
             <input id="es-exc" name="exclude_folders" placeholder="Spam|Trash"/>
           </div>
           <div class="field span2">
-            <label class="field-label">Parametros extras</label>
+            <label class="field-label">Parâmetros extras</label>
             <input id="es-extra" name="extra_args" placeholder="--maxsize 5000000"/>
           </div>
           <div class="field span2">
@@ -349,15 +337,20 @@
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-ghost" onclick="closeModal('modal-edit-source')">Cancelar</button>
-        <button type="submit" class="btn btn-primary">Salvar alteracoes</button>
+        <button type="submit" class="btn btn-primary">Salvar alterações</button>
       </div>
     </form>
   </div>
 </div>
 
-<!-- ═══════════════════════════════════════════════════
-     JAVASCRIPT
-════════════════════════════════════════════════════ -->
+<!-- ══════════════════════════════════ DATA ══ -->
+<script>
+// All data injected safely via JSON — never inside onclick attributes
+const ACCOUNTS = {{ accounts|tojson }};
+const SOURCES  = {{ sources|tojson }};
+</script>
+
+<!-- ══════════════════════════════════ JS ══ -->
 <script>
 function openModal(id) {
   document.getElementById(id).classList.add('open');
@@ -367,19 +360,12 @@ function closeModal(id) {
   document.getElementById(id).classList.remove('open');
   document.body.style.overflow = '';
 }
-
-// Close on overlay click
 document.querySelectorAll('.modal-overlay').forEach(overlay => {
-  overlay.addEventListener('click', e => {
-    if (e.target === overlay) closeModal(overlay.id);
-  });
+  overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(overlay.id); });
 });
-
-// Escape key
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') {
+  if (e.key === 'Escape')
     document.querySelectorAll('.modal-overlay.open').forEach(o => closeModal(o.id));
-  }
 });
 
 function switchTab(btn, paneId) {
@@ -390,35 +376,36 @@ function switchTab(btn, paneId) {
   document.getElementById(paneId).classList.add('active');
 }
 
-function openAccountModal(account, sources) {
-  const id = account.id;
+function openAccountModal(accountId) {
+  const account = ACCOUNTS.find(a => a.id === accountId);
+  if (!account) return;
+  const sources = SOURCES.filter(s => s.local_account_id === accountId);
 
-  // Reset tabs to first
+  // Reset tabs
   document.querySelectorAll('#modal-account .tab-btn').forEach((b, i) => b.classList.toggle('active', i === 0));
   document.querySelectorAll('#modal-account .tab-pane').forEach((p, i) => p.classList.toggle('active', i === 0));
 
-  // Info tab
+  // Info
   document.getElementById('modal-account-title').textContent = account.email;
   document.getElementById('ai-email').value   = account.email;
   document.getElementById('ai-status').value  = account.enabled ? 'Ativo' : 'Inativo';
   document.getElementById('ai-size').value    = account.maildir_size || '-';
   document.getElementById('ai-sync').value    = account.last_sync   || '-';
   document.getElementById('ai-created').value = account.created_at  || '-';
+  document.getElementById('form-validate').action = `/accounts/${accountId}/validate-credentials`;
 
-  document.getElementById('form-validate').action = `/accounts/${id}/validate-credentials`;
+  // Password
+  document.getElementById('form-reset-pwd').action = `/accounts/${accountId}/reset-password`;
+  document.getElementById('form-set-pwd').action   = `/accounts/${accountId}/set-password`;
 
-  // Password tab
-  document.getElementById('form-reset-pwd').action = `/accounts/${id}/reset-password`;
-  document.getElementById('form-set-pwd').action   = `/accounts/${id}/set-password`;
-
-  // Sources tab
-  document.getElementById('ns-account-id').value = id;
+  // Sources
+  document.getElementById('ns-account-id').value = accountId;
   renderSources(sources);
 
-  // Actions tab
-  document.getElementById('form-toggle').action = `/accounts/${id}/toggle`;
+  // Actions
+  document.getElementById('form-toggle').action = `/accounts/${accountId}/toggle`;
   document.getElementById('btn-toggle').textContent = account.enabled ? 'Desativar conta' : 'Ativar conta';
-  document.getElementById('form-delete').action = `/accounts/${id}/delete`;
+  document.getElementById('form-delete').action = `/accounts/${accountId}/delete`;
 
   openModal('modal-account');
 }
@@ -426,31 +413,35 @@ function openAccountModal(account, sources) {
 function renderSources(sources) {
   const container = document.getElementById('sources-list');
   if (!sources || sources.length === 0) {
-    container.innerHTML = '<p style="font-size:12px;color:var(--muted);margin-bottom:8px">Nenhuma source cadastrada para esta conta.</p>';
+    container.innerHTML = '<p style="font-size:12px;color:var(--muted);margin-bottom:12px">Nenhuma source cadastrada.</p>';
     return;
   }
   container.innerHTML = sources.map(s => {
-    const lastBadge = s.last_status
-      ? `<span class="badge badge-${s.last_status === 'success' ? 'success' : s.last_status === 'running' ? 'running' : 'fail'}">${s.last_status}</span>`
-      : `<span class="badge badge-neutral">sem execucao</span>`;
+    const statusClass = s.last_status === 'success' ? 'badge-success'
+                      : s.last_status === 'running'  ? 'badge-running'
+                      : s.last_status               ? 'badge-fail'
+                      :                               'badge-neutral';
+    const statusLabel = s.last_status || 'sem execução';
     const schedInfo = s.schedule_enabled
-      ? `agendado (${s.schedule_mode}: ${s.schedule_value})`
+      ? `agendado (${escHtml(s.schedule_mode)}: ${escHtml(String(s.schedule_value))})`
       : 'sem agendamento';
     return `
     <div class="source-row">
       <div class="source-info">
         <strong>${escHtml(s.source_name)}</strong>
         <span>${escHtml(s.user1)} @ ${escHtml(s.host1)}:${s.port1}</span>
-        <span>${schedInfo} &mdash; ultimo sync: ${s.last_sync_at || '-'}</span>
+        <span>${schedInfo} &mdash; último sync: ${s.last_sync_at || '-'}</span>
       </div>
       <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
-        ${lastBadge}
+        <span class="badge ${statusClass}">${escHtml(statusLabel)}</span>
         <div class="source-actions">
           <form method="post" action="/sources/${s.id}/import-now" style="display:inline">
-            <button class="btn btn-primary btn-sm" type="submit" title="Importar agora">Importar</button>
+            <button class="btn btn-primary btn-sm" type="submit">Importar</button>
           </form>
-          <button class="btn btn-ghost btn-sm" onclick='openEditSource(${JSON.stringify(s)})' type="button">Editar</button>
-          <form method="post" action="/sources/${s.id}/delete" onsubmit="return confirm('Excluir source?')" style="display:inline">
+          <button class="btn btn-ghost btn-sm" type="button"
+                  onclick="openEditSource(${s.id})">Editar</button>
+          <form method="post" action="/sources/${s.id}/delete"
+                onsubmit="return confirm('Excluir source?')" style="display:inline">
             <button class="btn btn-danger btn-sm" type="submit">Excluir</button>
           </form>
         </div>
@@ -459,26 +450,28 @@ function renderSources(sources) {
   }).join('');
 }
 
-function openEditSource(s) {
+function openEditSource(sourceId) {
+  const s = SOURCES.find(x => x.id === sourceId);
+  if (!s) return;
   document.getElementById('modal-source-title').textContent = `Editar source: ${s.source_name}`;
   document.getElementById('form-edit-source').action = `/sources/${s.id}/update`;
-  document.getElementById('es-name').value  = s.source_name;
-  document.getElementById('es-host').value  = s.host1;
-  document.getElementById('es-port').value  = s.port1;
-  document.getElementById('es-sec').value   = s.security1;
-  document.getElementById('es-user').value  = s.user1;
-  document.getElementById('es-pass').value  = '';
-  document.getElementById('es-inc').value   = s.include_folders  || '';
-  document.getElementById('es-exc').value   = s.exclude_folders  || '';
-  document.getElementById('es-extra').value = s.extra_args       || '';
+  document.getElementById('es-name').value    = s.source_name   || '';
+  document.getElementById('es-host').value    = s.host1         || '';
+  document.getElementById('es-port').value    = s.port1         || 993;
+  document.getElementById('es-sec').value     = s.security1     || 'ssl';
+  document.getElementById('es-user').value    = s.user1         || '';
+  document.getElementById('es-pass').value    = '';
+  document.getElementById('es-inc').value     = s.include_folders || '';
+  document.getElementById('es-exc').value     = s.exclude_folders || '';
+  document.getElementById('es-extra').value   = s.extra_args    || '';
   document.getElementById('es-sched').checked = !!s.schedule_enabled;
-  document.getElementById('es-smode').value = s.schedule_mode    || 'interval';
-  document.getElementById('es-sval').value  = s.schedule_value   || '360';
+  document.getElementById('es-smode').value   = s.schedule_mode || 'interval';
+  document.getElementById('es-sval').value    = s.schedule_value || '360';
   openModal('modal-edit-source');
 }
 
 function escHtml(str) {
-  return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 </script>
 </body>
