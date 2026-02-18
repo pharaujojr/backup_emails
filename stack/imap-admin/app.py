@@ -558,15 +558,29 @@ def rebuild_dovecot_users_file(conn):
             fcntl.flock(lock_file, fcntl.LOCK_UN)
 
 
+def _dovecot_reload(container):
+    """Run doveadm reload and wait briefly for the auth worker to re-read passwd-file."""
+    exec_text(container, ["doveadm", "reload"])
+    time.sleep(1.5)
+
+
 def verify_dovecot_auth(email, password):
     client = docker.from_env()
     container = get_running_container(client, DOVECOT_IMAP_HOST, wait_timeout=45)
-    auth_code, output = exec_text(container, ["doveadm", "auth", "test", email, password])
-    if auth_code != 0:
-        raise RuntimeError(
-            f"Dovecot não confirmou a senha recém-definida para {email}. "
-            f"Saída: {output[:220]}"
-        )
+    # Reload so the auth worker picks up the freshly written passwd-file before testing.
+    _dovecot_reload(container)
+    # Retry a few times in case the auth worker needs a moment to finalize.
+    last_output = ""
+    for attempt in range(1, 4):
+        auth_code, last_output = exec_text(container, ["doveadm", "auth", "test", email, password])
+        if auth_code == 0:
+            return
+        if attempt < 3:
+            time.sleep(1)
+    raise RuntimeError(
+        f"Dovecot não confirmou a senha recém-definida para {email}. "
+        f"Saída: {last_output[:220]}"
+    )
 
 
 def sync_dovecot_users_file_or_rollback(conn, email=None, password=None):
