@@ -17,7 +17,10 @@
 
   <!-- Topbar -->
   <header class="topbar">
-    <div class="topbar-brand">Mail Archive <span>/ admin</span></div>
+    <div class="topbar-brand">
+      <img src="{{ url_for('static', filename='solturi.svg') }}" alt="Solturi" class="topbar-logo"/>
+      <span>/ mail archive</span>
+    </div>
     <nav class="topbar-nav">
       <a class="nav-link active" href="/">Contas</a>
       <a class="nav-link" href="/logs">Logs</a>
@@ -35,7 +38,10 @@
   <main class="main">
     <div class="section-header">
       <span class="section-title">Contas locais</span>
-      <button class="btn btn-primary btn-sm" onclick="openModal('modal-new-account')">+ Nova conta</button>
+      <div class="section-controls">
+        <input type="search" id="account-search" class="search-input" placeholder="Filtrar por email…" oninput="filterAccounts(this.value)" autocomplete="off"/>
+        <button class="btn btn-primary btn-sm" onclick="openModal('modal-new-account')">+ Nova conta</button>
+      </div>
     </div>
 
     {% if not accounts %}
@@ -423,7 +429,7 @@ function renderSources(sources) {
                       :                               'badge-neutral';
     const statusLabel = s.last_status || 'sem execução';
     const schedInfo = s.schedule_enabled
-      ? `agendado (${escHtml(s.schedule_mode)}: ${escHtml(String(s.schedule_value))})`
+      ? `agendado (${escHtml(s.schedule_mode)}: ${escHtml(String(s.schedule_value))})${s.next_run ? ' &mdash; próximo: ' + escHtml(s.next_run) : ''}`
       : 'sem agendamento';
     return `
     <div class="source-row">
@@ -472,6 +478,31 @@ function openEditSource(sourceId) {
 
 function escHtml(str) {
   return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function filterAccounts(query) {
+  const q = query.trim().toLowerCase();
+  document.querySelectorAll('.account-card').forEach(card => {
+    const email = card.querySelector('.account-card-email').textContent.toLowerCase();
+    card.style.display = (!q || email.includes(q)) ? '' : 'none';
+  });
+  // show/hide empty state
+  const grid = document.querySelector('.accounts-grid');
+  if (grid) {
+    const anyVisible = [...grid.querySelectorAll('.account-card')].some(c => c.style.display !== 'none');
+    let noResult = document.getElementById('no-search-result');
+    if (!anyVisible) {
+      if (!noResult) {
+        noResult = document.createElement('div');
+        noResult.id = 'no-search-result';
+        noResult.className = 'empty-state';
+        noResult.textContent = 'Nenhuma conta encontrada.';
+        grid.parentNode.insertBefore(noResult, grid.nextSibling);
+      }
+    } else if (noResult) {
+      noResult.remove();
+    }
+  }
 }
 </script>
 </body>

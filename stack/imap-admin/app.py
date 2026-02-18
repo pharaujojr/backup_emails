@@ -101,7 +101,7 @@ running_sources_lock = threading.Lock()
 
 scheduler = BackgroundScheduler(
     jobstores={"default": SQLAlchemyJobStore(url=f"sqlite:///{DATABASE}")},
-    job_defaults={"coalesce": True, "max_instances": 1, "misfire_grace_time": 300},
+    job_defaults={"coalesce": True, "max_instances": 1, "misfire_grace_time": 86400},
     timezone="UTC",
 )
 scheduler_started = False
@@ -931,6 +931,12 @@ def index():
         s.pop("password1_encrypted", None)  # never send to frontend
         if s.get("last_sync_at"):
             s["last_sync_at"] = _fmt_brt(s["last_sync_at"])
+        # Next scheduled run
+        job = scheduler.get_job(scheduler_job_id(s["id"]))
+        if job and job.next_run_time:
+            s["next_run"] = _fmt_brt(job.next_run_time.isoformat())
+        else:
+            s["next_run"] = None
         sources.append(s)
     runs = db.execute(
         """

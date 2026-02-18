@@ -18,13 +18,10 @@
   <div class="login-wrap">
     <div class="login-card">
       <div class="login-logo">
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="2" y="4" width="20" height="16" rx="2"/>
-          <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
-        </svg>
+        <img src="{{ url_for('static', filename='solturi.svg') }}" alt="Solturi" style="height:36px;width:auto;filter:brightness(0) invert(1);opacity:.9"/>
       </div>
       <h1 class="login-title">Mail Archive</h1>
-      <p class="login-subtitle">Acesso administrativo</p>
+      <p class="login-subtitle">Painel administrativo</p>
       <form method="post" action="/login" autocomplete="on">
         <div class="field">
           <label class="field-label">Usuário</label>
