@@ -7,17 +7,17 @@ services:
       POSTGRES_USER: roundcube
       POSTGRES_PASSWORD: ${ROUNDCUBE_DB_PASSWORD}
     volumes:
-      - /home/paulo/PROJETOS/MAIL_SERVER/roundcube-db:/var/lib/postgresql/data
+      - ${MAIL_BASE}/roundcube-db:/var/lib/postgresql/data
     restart: unless-stopped
 
   dovecot:
     image: dovecot/dovecot:latest
     container_name: mailarchive_dovecot
     volumes:
-      - /home/paulo/PROJETOS/MAIL_SERVER/mail:/srv/vmail
+      - ${MAIL_BASE}/mail:/srv/vmail
       - ./dovecot-conf/auth.conf:/etc/dovecot/conf.d/auth.conf:ro
       - ./dovecot-conf/99-archive.conf:/etc/dovecot/conf.d/99-archive.conf:ro
-      - /home/paulo/PROJETOS/MAIL_SERVER/dovecot-users/users:/etc/dovecot/users:ro
+      - ${MAIL_BASE}/dovecot-users/users:/etc/dovecot/users:ro
     restart: unless-stopped
 
   roundcube:
@@ -46,7 +46,7 @@ services:
       ROUNDCUBEMAIL_DES_KEY: ${ROUNDCUBE_DES_KEY}
       ROUNDCUBEMAIL_SKIN: elastic
     volumes:
-      - /home/paulo/PROJETOS/MAIL_SERVER/roundcube-config:/var/roundcube/config
+      - ${MAIL_BASE}/roundcube-config:/var/roundcube/config
     restart: unless-stopped
 
   cloudflared:
@@ -65,8 +65,8 @@ services:
     container_name: mailarchive_imapsync
     entrypoint: ["sleep", "infinity"]
     volumes:
-      - /home/paulo/PROJETOS/MAIL_SERVER/imapsync-logs:/logs
-      - /home/paulo/PROJETOS/MAIL_SERVER/stack/run-imapsync.sh:/run-imapsync.sh:ro
+      - ${MAIL_BASE}/imapsync-logs:/logs
+      - ${MAIL_BASE}/stack/run-imapsync.sh:/run-imapsync.sh:ro
     restart: unless-stopped
 
   imap_admin:
@@ -96,9 +96,9 @@ services:
       ROUNDCUBE_TEST_URL: ${ROUNDCUBE_TEST_URL}
       ROUNDCUBE_PROD_URL: ${ROUNDCUBE_PROD_URL}
     volumes:
-      - /home/paulo/PROJETOS/MAIL_SERVER/imap-admin-data:/data
-      - /home/paulo/PROJETOS/MAIL_SERVER/dovecot-users:/data/dovecot-users
-      - /home/paulo/PROJETOS/MAIL_SERVER/mail:/data/mail
-      - /home/paulo/PROJETOS/MAIL_SERVER/imapsync-logs:/data/imapsync-logs
+      - ${MAIL_BASE}/imap-admin-data:/data
+      - ${MAIL_BASE}/dovecot-users:/data/dovecot-users
+      - ${MAIL_BASE}/mail:/data/mail
+      - ${MAIL_BASE}/imapsync-logs:/data/imapsync-logs
       - /var/run/docker.sock:/var/run/docker.sock
     restart: unless-stopped
