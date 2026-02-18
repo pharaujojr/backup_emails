@@ -12,7 +12,7 @@ fi
 
 USERS_FILE="${USERS_FILE:-/home/paulo/PROJETOS/MAIL_SERVER/dovecot-users/users}"
 DOVECOT_CONTAINER="${DOVECOT_CONTAINER:-mailarchive_dovecot}"
-EXPECTED_USERS_PATH="/etc/dovecot/users"
+EXPECTED_USERS_PATH="/etc/dovecot/dovecot-users/users"
 
 need_cmd() {
   command -v "$1" >/dev/null 2>&1 || {

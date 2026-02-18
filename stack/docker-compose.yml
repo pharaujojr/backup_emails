@@ -17,7 +17,7 @@ services:
       - ${MAIL_BASE}/mail:/srv/vmail
       - ./dovecot-conf/auth.conf:/etc/dovecot/conf.d/auth.conf:ro
       - ./dovecot-conf/99-archive.conf:/etc/dovecot/conf.d/99-archive.conf:ro
-      - ${MAIL_BASE}/dovecot-users/users:/etc/dovecot/users:ro
+      - ${MAIL_BASE}/dovecot-users:/etc/dovecot/dovecot-users:ro
     restart: unless-stopped
 
   roundcube:

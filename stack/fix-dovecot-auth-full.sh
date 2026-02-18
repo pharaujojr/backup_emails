@@ -145,7 +145,7 @@ auth_allow_cleartext = yes
 auth_mechanisms = plain login
 
 passdb passwd-file {
-  passwd_file_path = /etc/dovecot/users
+  passwd_file_path = /etc/dovecot/dovecot-users/users
 }
 
 userdb static {
