@@ -1,257 +1,485 @@
 <!doctype html>
 <html lang="pt-BR">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>IMAP Admin</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
-  </head>
-  <body>
-    <main class="layout">
-      <section class="card topbar">
-        <div>
-          <h1>Mail Archive Admin</h1>
-          <p>
-            Roundcube teste: <a href="{{ roundcube_test_url }}" target="_blank" rel="noreferrer">{{ roundcube_test_url }}</a><br />
-            Roundcube produção: <a href="{{ roundcube_prod_url }}" target="_blank" rel="noreferrer">{{ roundcube_prod_url }}</a>
-          </p>
-        </div>
-        <div class="actions">
-          <form method="post" action="/dovecot/reload"><button type="submit" title="Executa doveadm reload no container do Dovecot">Reload dovecot</button></form>
-          <form method="post" action="/logout"><button class="danger" type="submit">Sair</button></form>
-        </div>
-      </section>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Mail Archive</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"/>
+</head>
+<body>
+<div class="app">
 
-      {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-          <section class="card">
-            <div class="flash-list">
-            {% for category, message in messages %}
-              <p class="flash {{ category }}">{{ message }}</p>
-            {% endfor %}
-            </div>
-          </section>
-        {% endif %}
-      {% endwith %}
+  <!-- Flash messages -->
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+      <div class="flash-bar {{ category }}">{{ message }}</div>
+    {% endfor %}
+  {% endwith %}
 
-      <section class="card">
-        <h2>Accounts (Dovecot local users)</h2>
-        <form method="post" action="/accounts" class="grid">
-          <label class="field">Conta local (email)
-            <span class="tip" title="Usuário que fará login no Roundcube e no Dovecot">?</span>
-            <input name="email" type="email" placeholder="suporte.ti.sorriso@archive.local" required />
-          </label>
-          <div class="field submit-field">
-            <button type="submit" title="Cria Maildir, gera senha forte e escreve no passwd-file do Dovecot">Criar conta local</button>
+  <!-- Topbar -->
+  <header class="topbar">
+    <div class="topbar-brand">Mail Archive <span>/ admin</span></div>
+    <nav class="topbar-nav">
+      <a class="nav-link active" href="/">Contas</a>
+      <a class="nav-link" href="/logs">Logs</a>
+    </nav>
+    <div class="topbar-actions">
+      <form method="post" action="/dovecot/reload">
+        <button class="btn btn-ghost btn-sm" type="submit" title="Executa doveadm reload no container">Reload Dovecot</button>
+      </form>
+      <form method="post" action="/logout">
+        <button class="btn btn-ghost btn-sm" type="submit">Sair</button>
+      </form>
+    </div>
+  </header>
+
+  <main class="main">
+
+    <!-- Accounts section -->
+    <div class="section-header">
+      <span class="section-title">Contas locais</span>
+      <button class="btn btn-primary btn-sm" onclick="openModal('modal-new-account')">+ Nova conta</button>
+    </div>
+
+    {% if not accounts %}
+    <div class="empty-state">Nenhuma conta local criada. Clique em "Nova conta" para começar.</div>
+    {% else %}
+    <div class="accounts-grid">
+      {% for a in accounts %}
+      <div class="account-card {{ '' if a.enabled else 'disabled' }}"
+           onclick="openAccountModal({{ a|tojson }}, {{ sources|selectattr('local_account_id','eq', a.id)|list|tojson }})">
+        <div class="account-card-email">{{ a.email }}</div>
+        <div class="account-card-meta">
+          <div class="meta-row">
+            <span>Armazenamento</span>
+            <strong>{{ a.maildir_size }}</strong>
+          </div>
+          <div class="meta-row">
+            <span>Ultimo sync</span>
+            <strong>{{ a.last_sync or '-' }}</strong>
+          </div>
+          <div class="meta-row">
+            <span>Sources</span>
+            <strong>{{ a.source_count }}</strong>
+          </div>
+          <div class="meta-row">
+            <span>Status</span>
+            <span class="badge {{ 'badge-ok' if a.enabled else 'badge-off' }}">{{ 'ativo' if a.enabled else 'inativo' }}</span>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+  </main>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     MODAL: Nova conta
+════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modal-new-account">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Nova conta local</span>
+      <button class="modal-close" onclick="closeModal('modal-new-account')">&times;</button>
+    </div>
+    <form method="post" action="/accounts">
+      <div class="modal-body">
+        <div class="field">
+          <label class="field-label">Endereço de email</label>
+          <input name="email" type="email" placeholder="usuario@archive.local" required autofocus/>
+        </div>
+        <p style="margin-top:12px;font-size:12px;color:var(--muted)">
+          A senha será gerada automaticamente e exibida apenas uma vez.
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" onclick="closeModal('modal-new-account')">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Criar conta</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     MODAL: Detalhes da conta (gerado via JS)
+════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modal-account">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <span class="modal-title" id="modal-account-title">Conta</span>
+      <button class="modal-close" onclick="closeModal('modal-account')">&times;</button>
+    </div>
+    <div class="modal-body">
+
+      <div class="tab-bar">
+        <button class="tab-btn active" onclick="switchTab(this,'tab-info')">Informações</button>
+        <button class="tab-btn" onclick="switchTab(this,'tab-password')">Senha</button>
+        <button class="tab-btn" onclick="switchTab(this,'tab-sources')">Sources</button>
+        <button class="tab-btn" onclick="switchTab(this,'tab-danger')">Acoes</button>
+      </div>
+
+      <!-- Tab: Info -->
+      <div class="tab-pane active" id="tab-info">
+        <div class="form-grid">
+          <div class="field">
+            <label class="field-label">Email</label>
+            <input id="ai-email" type="text" readonly style="opacity:.6"/>
+          </div>
+          <div class="field">
+            <label class="field-label">Status</label>
+            <input id="ai-status" type="text" readonly style="opacity:.6"/>
+          </div>
+          <div class="field">
+            <label class="field-label">Armazenamento</label>
+            <input id="ai-size" type="text" readonly style="opacity:.6"/>
+          </div>
+          <div class="field">
+            <label class="field-label">Ultimo sync</label>
+            <input id="ai-sync" type="text" readonly style="opacity:.6"/>
+          </div>
+          <div class="field span2">
+            <label class="field-label">Criado em</label>
+            <input id="ai-created" type="text" readonly style="opacity:.6"/>
+          </div>
+        </div>
+        <hr class="modal-sep"/>
+        <p style="font-size:12px;color:var(--muted)">Para validar login no Dovecot:</p>
+        <form id="form-validate" method="post" style="margin-top:10px">
+          <div style="display:flex;gap:8px">
+            <input name="validate_password" type="password" placeholder="Informe a senha para validar" style="flex:1"/>
+            <button type="submit" class="btn btn-ghost btn-sm">Validar login</button>
           </div>
         </form>
-        <p class="hint">A senha é gerada aleatoriamente e exibida apenas uma vez.</p>
+      </div>
 
-        {% if not accounts %}
-        <p>Nenhuma conta local criada.</p>
-        {% else %}
-        <table>
-          <tr>
-            <th>ID</th>
-            <th>Conta</th>
-            <th>Status</th>
-            <th>Sources</th>
-            <th>Último reset</th>
-            <th>Ações</th>
-          </tr>
-          {% for a in accounts %}
-          <tr>
-            <td>{{ a.id }}</td>
-            <td>{{ a.email }}</td>
-            <td>{{ 'enabled' if a.enabled else 'disabled' }}</td>
-            <td>{{ a.source_count }}</td>
-            <td>{{ a.last_password_reset_at or '-' }}</td>
-            <td class="actions">
-              <form method="post" action="/accounts/{{ a.id }}/reset-password"><button type="submit" title="Gera senha aleatória nova e atualiza o Dovecot">Reset senha</button></form>
-              <form method="post" action="/accounts/{{ a.id }}/set-password" class="inline" title="Define uma senha escolhida por você para essa conta local">
-                <input name="new_password" type="password" placeholder="Nova senha manual (>=12)" required title="Mínimo de 12 caracteres" />
-                <button type="submit">Alterar senha</button>
-              </form>
-              <form method="post" action="/accounts/{{ a.id }}/validate-credentials" class="inline" title="Valida login com doveadm auth test no Dovecot">
-                <input name="validate_password" type="password" placeholder="Senha para validar" required title="Senha não é persistida nessa validação" />
-                <button type="submit">Validate credentials</button>
-              </form>
-              <form method="post" action="/accounts/{{ a.id }}/toggle"><button type="submit" title="Desativa/ativa login no Dovecot sem apagar Maildir">{{ 'Desativar' if a.enabled else 'Ativar' }}</button></form>
-              <form method="post" action="/accounts/{{ a.id }}/delete" onsubmit="return confirm('Remover conta do painel? Maildir será preservado.');"><button class="danger" type="submit" title="Remove do painel e do bloco managed no passwd-file; não apaga Maildir">Excluir do painel</button></form>
-            </td>
-          </tr>
-          {% endfor %}
-        </table>
-        {% endif %}
-      </section>
+      <!-- Tab: Senha -->
+      <div class="tab-pane" id="tab-password">
+        <div style="display:flex;flex-direction:column;gap:16px">
+          <div>
+            <p class="divider-label">Resetar senha automaticamente</p>
+            <p style="font-size:12px;color:var(--muted);margin-bottom:10px">Gera uma senha aleatória forte. A senha atual deixa de funcionar imediatamente.</p>
+            <form id="form-reset-pwd" method="post">
+              <button type="submit" class="btn btn-warn btn-sm">Gerar nova senha</button>
+            </form>
+          </div>
+          <hr class="modal-sep"/>
+          <div>
+            <p class="divider-label">Definir senha manualmente</p>
+            <form id="form-set-pwd" method="post">
+              <div class="form-grid">
+                <div class="field span2">
+                  <label class="field-label">Nova senha (minimo 12 caracteres)</label>
+                  <input name="new_password" type="password" placeholder="Nova senha" required minlength="12"/>
+                </div>
+              </div>
+              <div style="margin-top:12px">
+                <button type="submit" class="btn btn-primary btn-sm">Salvar senha</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
 
-      <section class="card">
-        <h2>Nova Source IMAP</h2>
-        <form method="post" action="/sources" class="grid">
-          <label class="field">Conta local destino
-            <span class="tip" title="Conta local (Dovecot) que receberá os emails importados">?</span>
-            <select name="local_account_id" required>
-              <option value="">Selecione uma conta local</option>
-              {% for a in accounts %}
-              <option value="{{ a.id }}">{{ a.email }}</option>
-              {% endfor %}
-            </select>
-          </label>
+      <!-- Tab: Sources -->
+      <div class="tab-pane" id="tab-sources">
+        <div id="sources-list"></div>
+        <hr class="modal-sep"/>
+        <p class="divider-label">Nova source IMAP</p>
+        <form id="form-new-source" method="post" action="/sources">
+          <input type="hidden" id="ns-account-id" name="local_account_id"/>
+          <div class="form-grid">
+            <div class="field">
+              <label class="field-label">Nome da source</label>
+              <input name="source_name" placeholder="hostgator-principal" required/>
+            </div>
+            <div class="field">
+              <label class="field-label">Host IMAP origem</label>
+              <input name="host1" placeholder="mail.servidor.com.br" required/>
+            </div>
+            <div class="field">
+              <label class="field-label">Porta</label>
+              <input name="port1" type="number" value="993" required/>
+            </div>
+            <div class="field">
+              <label class="field-label">Seguranca</label>
+              <select name="security1">
+                <option value="ssl" selected>SSL</option>
+                <option value="tls">TLS</option>
+                <option value="none">NONE</option>
+              </select>
+            </div>
+            <div class="field">
+              <label class="field-label">Usuario origem</label>
+              <input name="user1" placeholder="usuario@dominio.com" required/>
+            </div>
+            <div class="field">
+              <label class="field-label">Senha origem</label>
+              <input name="password1" type="password" placeholder="Senha" required/>
+            </div>
+            <div class="field span2">
+              <label class="field-label">Include folders (opcional, virgula ou linha)</label>
+              <input name="include_folders" placeholder="INBOX, Sent"/>
+            </div>
+            <div class="field span2">
+              <label class="field-label">Exclude regex (opcional)</label>
+              <input name="exclude_folders" placeholder="Spam|Trash"/>
+            </div>
+            <div class="field span2">
+              <label class="field-label">Parametros extras (opcional)</label>
+              <input name="extra_args" placeholder="--maxsize 5000000"/>
+            </div>
+            <div class="field span2">
+              <label class="checkbox-row">
+                <input type="checkbox" name="schedule_enabled"/> Habilitar agendamento
+              </label>
+            </div>
+            <div class="field">
+              <label class="field-label">Tipo de agendamento</label>
+              <select name="schedule_mode">
+                <option value="interval" selected>Intervalo (minutos)</option>
+                <option value="cron">Cron</option>
+              </select>
+            </div>
+            <div class="field">
+              <label class="field-label">Valor</label>
+              <input name="schedule_value" value="360" placeholder="360 ou 0 */6 * * *" required/>
+            </div>
+          </div>
+          <div style="margin-top:14px">
+            <button type="submit" class="btn btn-primary btn-sm">Salvar source</button>
+          </div>
+        </form>
+      </div>
 
-          <label class="field">Nome da source
-            <span class="tip" title="Nome amigável para identificar esta origem IMAP">?</span>
-            <input name="source_name" placeholder="hostgator-principal" required />
-          </label>
+      <!-- Tab: Acoes / Perigo -->
+      <div class="tab-pane" id="tab-danger">
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div style="background:var(--surface2);border-radius:var(--radius);padding:14px">
+            <p style="font-size:13px;font-weight:500;margin-bottom:6px;color:var(--text)">Desativar / Ativar conta</p>
+            <p style="font-size:12px;color:var(--muted);margin-bottom:10px">Bloqueia ou libera o login no Dovecot. O Maildir e os dados ficam preservados.</p>
+            <form id="form-toggle" method="post">
+              <button type="submit" id="btn-toggle" class="btn btn-warn btn-sm">Desativar</button>
+            </form>
+          </div>
+          <div style="background:rgba(192,57,43,.08);border:1px solid rgba(192,57,43,.2);border-radius:var(--radius);padding:14px">
+            <p style="font-size:13px;font-weight:500;margin-bottom:6px;color:#e74c3c">Remover conta do painel</p>
+            <p style="font-size:12px;color:var(--muted);margin-bottom:10px">Remove o acesso e as sources do banco. O Maildir no servidor nao e apagado.</p>
+            <form id="form-delete" method="post" onsubmit="return confirm('Remover conta do painel? O Maildir sera preservado.')">
+              <button type="submit" class="btn btn-danger btn-sm">Remover do painel</button>
+            </form>
+          </div>
+        </div>
+      </div>
 
-          <label class="field">Host IMAP origem
-            <span class="tip" title="Exemplo: imap.hostgator.com">?</span>
-            <input name="host1" placeholder="imap.hostgator.com" required />
-          </label>
+    </div><!-- modal-body -->
+  </div>
+</div>
 
-          <label class="field">Porta origem
-            <span class="tip" title="Padrão IMAPS: 993">?</span>
-            <input name="port1" type="number" value="993" required />
-          </label>
-
-          <label class="field">Segurança origem
-            <span class="tip" title="SSL recomendado para conexões de origem IMAP">?</span>
-            <select name="security1">
-              <option value="ssl" selected>SSL</option>
+<!-- ═══════════════════════════════════════════════════
+     MODAL: Editar source (gerado via JS)
+════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modal-edit-source">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <span class="modal-title" id="modal-source-title">Editar source</span>
+      <button class="modal-close" onclick="closeModal('modal-edit-source')">&times;</button>
+    </div>
+    <form id="form-edit-source" method="post">
+      <div class="modal-body">
+        <div class="form-grid">
+          <div class="field">
+            <label class="field-label">Nome da source</label>
+            <input id="es-name" name="source_name" required/>
+          </div>
+          <div class="field">
+            <label class="field-label">Host IMAP origem</label>
+            <input id="es-host" name="host1" required/>
+          </div>
+          <div class="field">
+            <label class="field-label">Porta</label>
+            <input id="es-port" name="port1" type="number" required/>
+          </div>
+          <div class="field">
+            <label class="field-label">Seguranca</label>
+            <select id="es-sec" name="security1">
+              <option value="ssl">SSL</option>
               <option value="tls">TLS</option>
               <option value="none">NONE</option>
             </select>
-          </label>
-
-          <label class="field">Usuário origem
-            <span class="tip" title="Geralmente o email completo da conta no provedor antigo">?</span>
-            <input name="user1" placeholder="usuario@dominio.com" required />
-          </label>
-
-          <label class="field">Senha origem
-            <span class="tip" title="Armazenada criptografada com Fernet (MASTER_KEY)">?</span>
-            <input name="password1" type="password" placeholder="Senha origem" required />
-          </label>
-
-          <label class="field">Include folders (opcional)
-            <span class="tip" title="Somente estas pastas serão importadas. Separe por vírgula ou nova linha.">?</span>
-            <input name="include_folders" placeholder="INBOX, Sent" />
-          </label>
-
-          <label class="field">Exclude regex (opcional)
-            <span class="tip" title="Pastas que não devem ser importadas (regex imapsync)">?</span>
-            <input name="exclude_folders" placeholder="Spam|Trash" />
-          </label>
-
-          <label class="field">Parâmetros extras (opcional)
-            <span class="tip" title="Permitidos, exceto opções destrutivas (delete/expunge/deletefolders/fast)">?</span>
-            <input name="extra_args" placeholder="--maxsize 5000000" />
-          </label>
-
-          <label class="field">Agendamento ativo
-            <span class="tip" title="Se marcado, o import roda automaticamente">?</span>
-            <label class="inline"><input type="checkbox" name="schedule_enabled" /> Habilitar</label>
-          </label>
-
-          <label class="field">Tipo de agendamento
-            <span class="tip" title="Intervalo em minutos ou cron">?</span>
-            <select name="schedule_mode">
-              <option value="interval" selected>Intervalo (minutos)</option>
+          </div>
+          <div class="field">
+            <label class="field-label">Usuario origem</label>
+            <input id="es-user" name="user1" required/>
+          </div>
+          <div class="field">
+            <label class="field-label">Nova senha origem (deixe vazio para manter)</label>
+            <input id="es-pass" name="password1" type="password" placeholder="Preencha so se quiser trocar"/>
+          </div>
+          <div class="field span2">
+            <label class="field-label">Include folders</label>
+            <input id="es-inc" name="include_folders" placeholder="INBOX, Sent"/>
+          </div>
+          <div class="field span2">
+            <label class="field-label">Exclude regex</label>
+            <input id="es-exc" name="exclude_folders" placeholder="Spam|Trash"/>
+          </div>
+          <div class="field span2">
+            <label class="field-label">Parametros extras</label>
+            <input id="es-extra" name="extra_args" placeholder="--maxsize 5000000"/>
+          </div>
+          <div class="field span2">
+            <label class="checkbox-row">
+              <input id="es-sched" type="checkbox" name="schedule_enabled"/> Habilitar agendamento
+            </label>
+          </div>
+          <div class="field">
+            <label class="field-label">Tipo</label>
+            <select id="es-smode" name="schedule_mode">
+              <option value="interval">Intervalo (minutos)</option>
               <option value="cron">Cron</option>
             </select>
-          </label>
-
-          <label class="field">Valor do agendamento
-            <span class="tip" title="Intervalo: 360. Cron: 0 */6 * * *">?</span>
-            <input name="schedule_value" placeholder="360 ou 0 */6 * * *" value="360" required />
-          </label>
-
-          <div class="field submit-field">
-            <button type="submit">Salvar source</button>
           </div>
-        </form>
-      </section>
+          <div class="field">
+            <label class="field-label">Valor</label>
+            <input id="es-sval" name="schedule_value" required/>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" onclick="closeModal('modal-edit-source')">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Salvar alteracoes</button>
+      </div>
+    </form>
+  </div>
+</div>
 
-      <section class="card">
-        <h2>Sources</h2>
-        {% if not sources %}
-        <p>Nenhuma source cadastrada.</p>
-        {% else %}
-          {% for s in sources %}
-          <article class="source-box">
-            <header>
-              <strong>#{{ s.id }} {{ s.source_name }}</strong>
-              <span>{{ s.user1 }}@{{ s.host1 }}:{{ s.port1 }} -> {{ s.local_email }}@{{ 'mailarchive_dovecot' }}:31143</span>
-              <span>Status: {{ s.last_status or '-' }}</span>
-            </header>
-            <form method="post" action="/sources/{{ s.id }}/update" class="grid">
-              <label class="field">Nome da source<input name="source_name" value="{{ s.source_name }}" required /></label>
-              <label class="field">Host origem<input name="host1" value="{{ s.host1 }}" required /></label>
-              <label class="field">Porta origem<input name="port1" type="number" value="{{ s.port1 }}" required /></label>
-              <label class="field">Segurança origem
-                <select name="security1">
-                  <option value="ssl" {{ 'selected' if s.security1 == 'ssl' else '' }}>SSL</option>
-                  <option value="tls" {{ 'selected' if s.security1 == 'tls' else '' }}>TLS</option>
-                  <option value="none" {{ 'selected' if s.security1 == 'none' else '' }}>NONE</option>
-                </select>
-              </label>
-              <label class="field">Usuário origem<input name="user1" value="{{ s.user1 }}" required /></label>
-              <label class="field">Nova senha origem (opcional)<input name="password1" type="password" placeholder="Preencha só se quiser trocar" /></label>
-              <label class="field">Include folders<input name="include_folders" value="{{ s.include_folders }}" placeholder="INBOX, Sent" /></label>
-              <label class="field">Exclude regex<input name="exclude_folders" value="{{ s.exclude_folders }}" placeholder="Spam|Trash" /></label>
-              <label class="field">Parâmetros extras<input name="extra_args" value="{{ s.extra_args }}" placeholder="--maxsize 5000000" /></label>
-              <label class="field">Agendamento ativo
-                <label class="inline"><input type="checkbox" name="schedule_enabled" {{ 'checked' if s.schedule_enabled else '' }} /> Habilitar</label>
-              </label>
-              <label class="field">Tipo agendamento
-                <select name="schedule_mode">
-                  <option value="interval" {{ 'selected' if s.schedule_mode == 'interval' else '' }}>Intervalo (min)</option>
-                  <option value="cron" {{ 'selected' if s.schedule_mode == 'cron' else '' }}>Cron</option>
-                </select>
-              </label>
-              <label class="field">Valor agendamento<input name="schedule_value" value="{{ s.schedule_value }}" required /></label>
-              <div class="field submit-field"><button type="submit">Salvar alterações</button></div>
-            </form>
-            <div class="actions">
-              <form method="post" action="/sources/{{ s.id }}/import-now"><button type="submit" title="Dispara importação imediata">Import now</button></form>
-              <form method="post" action="/sources/{{ s.id }}/toggle-schedule"><button type="submit">{{ 'Desabilitar schedule' if s.schedule_enabled else 'Habilitar schedule' }}</button></form>
-              <form method="post" action="/sources/{{ s.id }}/delete" onsubmit="return confirm('Excluir source?');"><button class="danger" type="submit">Excluir source</button></form>
-            </div>
-          </article>
-          {% endfor %}
-        {% endif %}
-      </section>
+<!-- ═══════════════════════════════════════════════════
+     JAVASCRIPT
+════════════════════════════════════════════════════ -->
+<script>
+function openModal(id) {
+  document.getElementById(id).classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+  document.body.style.overflow = '';
+}
 
-      <section class="card">
-        <h2>Execuções (imapsync)</h2>
-        {% if not runs %}
-        <p>Sem execuções ainda.</p>
-        {% else %}
-        <table>
-          <tr>
-            <th>Início</th>
-            <th>Source</th>
-            <th>Conta local</th>
-            <th>Status</th>
-            <th>Trigger</th>
-            <th>Duração</th>
-            <th>Exit</th>
-            <th>Log</th>
-          </tr>
-          {% for r in runs %}
-          <tr>
-            <td>{{ r.started_at }}</td>
-            <td>{{ r.source_name }}</td>
-            <td>{{ r.local_email }}</td>
-            <td>{{ r.status }}</td>
-            <td>{{ r.trigger_type }}</td>
-            <td>{{ r.duration_seconds if r.duration_seconds is not none else '-' }}</td>
-            <td>{{ r.exit_code if r.exit_code is not none else '-' }}</td>
-            <td><a href="/runs/{{ r.id }}/log" target="_blank" rel="noreferrer">abrir log</a><br /><code>{{ r.log_path }}</code></td>
-          </tr>
-          {% endfor %}
-        </table>
-        {% endif %}
-      </section>
-    </main>
-  </body>
+// Close on overlay click
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  overlay.addEventListener('click', e => {
+    if (e.target === overlay) closeModal(overlay.id);
+  });
+});
+
+// Escape key
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    document.querySelectorAll('.modal-overlay.open').forEach(o => closeModal(o.id));
+  }
+});
+
+function switchTab(btn, paneId) {
+  const modal = btn.closest('.modal');
+  modal.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  modal.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById(paneId).classList.add('active');
+}
+
+function openAccountModal(account, sources) {
+  const id = account.id;
+
+  // Reset tabs to first
+  document.querySelectorAll('#modal-account .tab-btn').forEach((b, i) => b.classList.toggle('active', i === 0));
+  document.querySelectorAll('#modal-account .tab-pane').forEach((p, i) => p.classList.toggle('active', i === 0));
+
+  // Info tab
+  document.getElementById('modal-account-title').textContent = account.email;
+  document.getElementById('ai-email').value   = account.email;
+  document.getElementById('ai-status').value  = account.enabled ? 'Ativo' : 'Inativo';
+  document.getElementById('ai-size').value    = account.maildir_size || '-';
+  document.getElementById('ai-sync').value    = account.last_sync   || '-';
+  document.getElementById('ai-created').value = account.created_at  || '-';
+
+  document.getElementById('form-validate').action = `/accounts/${id}/validate-credentials`;
+
+  // Password tab
+  document.getElementById('form-reset-pwd').action = `/accounts/${id}/reset-password`;
+  document.getElementById('form-set-pwd').action   = `/accounts/${id}/set-password`;
+
+  // Sources tab
+  document.getElementById('ns-account-id').value = id;
+  renderSources(sources);
+
+  // Actions tab
+  document.getElementById('form-toggle').action = `/accounts/${id}/toggle`;
+  document.getElementById('btn-toggle').textContent = account.enabled ? 'Desativar conta' : 'Ativar conta';
+  document.getElementById('form-delete').action = `/accounts/${id}/delete`;
+
+  openModal('modal-account');
+}
+
+function renderSources(sources) {
+  const container = document.getElementById('sources-list');
+  if (!sources || sources.length === 0) {
+    container.innerHTML = '<p style="font-size:12px;color:var(--muted);margin-bottom:8px">Nenhuma source cadastrada para esta conta.</p>';
+    return;
+  }
+  container.innerHTML = sources.map(s => {
+    const lastBadge = s.last_status
+      ? `<span class="badge badge-${s.last_status === 'success' ? 'success' : s.last_status === 'running' ? 'running' : 'fail'}">${s.last_status}</span>`
+      : `<span class="badge badge-neutral">sem execucao</span>`;
+    const schedInfo = s.schedule_enabled
+      ? `agendado (${s.schedule_mode}: ${s.schedule_value})`
+      : 'sem agendamento';
+    return `
+    <div class="source-row">
+      <div class="source-info">
+        <strong>${escHtml(s.source_name)}</strong>
+        <span>${escHtml(s.user1)} @ ${escHtml(s.host1)}:${s.port1}</span>
+        <span>${schedInfo} &mdash; ultimo sync: ${s.last_sync_at || '-'}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+        ${lastBadge}
+        <div class="source-actions">
+          <form method="post" action="/sources/${s.id}/import-now" style="display:inline">
+            <button class="btn btn-primary btn-sm" type="submit" title="Importar agora">Importar</button>
+          </form>
+          <button class="btn btn-ghost btn-sm" onclick='openEditSource(${JSON.stringify(s)})' type="button">Editar</button>
+          <form method="post" action="/sources/${s.id}/delete" onsubmit="return confirm('Excluir source?')" style="display:inline">
+            <button class="btn btn-danger btn-sm" type="submit">Excluir</button>
+          </form>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openEditSource(s) {
+  document.getElementById('modal-source-title').textContent = `Editar source: ${s.source_name}`;
+  document.getElementById('form-edit-source').action = `/sources/${s.id}/update`;
+  document.getElementById('es-name').value  = s.source_name;
+  document.getElementById('es-host').value  = s.host1;
+  document.getElementById('es-port').value  = s.port1;
+  document.getElementById('es-sec').value   = s.security1;
+  document.getElementById('es-user').value  = s.user1;
+  document.getElementById('es-pass').value  = '';
+  document.getElementById('es-inc').value   = s.include_folders  || '';
+  document.getElementById('es-exc').value   = s.exclude_folders  || '';
+  document.getElementById('es-extra').value = s.extra_args       || '';
+  document.getElementById('es-sched').checked = !!s.schedule_enabled;
+  document.getElementById('es-smode').value = s.schedule_mode    || 'interval';
+  document.getElementById('es-sval').value  = s.schedule_value   || '360';
+  openModal('modal-edit-source');
+}
+
+function escHtml(str) {
+  return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
 </html>

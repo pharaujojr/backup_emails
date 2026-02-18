@@ -1,34 +1,44 @@
 <!doctype html>
 <html lang="pt-BR">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Login | IMAP Admin</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
-  </head>
-  <body>
-    <main class="layout narrow">
-      <section class="card">
-        <h1>Painel de Administração</h1>
-        <form method="post" action="/login" class="grid one-col">
-          <label class="field">Usuário admin
-            <input name="username" placeholder="admin" required />
-          </label>
-          <label class="field">Senha admin
-            <input name="password" type="password" placeholder="Sua senha" required />
-          </label>
-          <button type="submit">Entrar</button>
-        </form>
-        {% with messages = get_flashed_messages(with_categories=true) %}
-          {% if messages %}
-            <div class="flash-list">
-            {% for category, message in messages %}
-              <p class="flash {{ category }}">{{ message }}</p>
-            {% endfor %}
-            </div>
-          {% endif %}
-        {% endwith %}
-      </section>
-    </main>
-  </body>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Mail Archive — Login</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"/>
+</head>
+<body>
+<div class="app">
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+      <div class="flash-bar {{ category }}">{{ message }}</div>
+    {% endfor %}
+  {% endwith %}
+
+  <div class="login-wrap">
+    <div class="login-card">
+      <div class="login-logo">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="4" width="20" height="16" rx="2"/>
+          <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+        </svg>
+      </div>
+      <h1 class="login-title">Mail Archive</h1>
+      <p class="login-subtitle">Acesso administrativo</p>
+      <form method="post" action="/login" autocomplete="on">
+        <div class="field">
+          <label class="field-label">Usuário</label>
+          <input name="username" type="text" placeholder="admin" required autofocus autocomplete="username"/>
+        </div>
+        <div class="field">
+          <label class="field-label">Senha</label>
+          <input name="password" type="password" placeholder="••••••••" required autocomplete="current-password"/>
+        </div>
+        <button type="submit" class="btn btn-primary" style="width:100%;margin-top:8px">Entrar</button>
+      </form>
+    </div>
+  </div>
+
+</div>
+</body>
 </html>

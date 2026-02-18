@@ -54,6 +54,26 @@ FORBIDDEN_EXACT = {"fast"}
 app = Flask(__name__)
 app.secret_key = FLASK_SECRET_KEY or os.urandom(32)
 
+
+def _duration_fmt(started: str | None, finished: str | None) -> str:
+    """Return human-readable duration like '2m 34s'."""
+    if not started or not finished:
+        return "—"
+    try:
+        fmt = "%Y-%m-%dT%H:%M:%S"
+        s = datetime.strptime(started[:19], fmt)
+        f = datetime.strptime(finished[:19], fmt)
+        secs = max(0, int((f - s).total_seconds()))
+        if secs < 60:
+            return f"{secs}s"
+        m, s = divmod(secs, 60)
+        return f"{m}m {s}s"
+    except (ValueError, TypeError):
+        return "—"
+
+
+app.jinja_env.globals["duration_fmt"] = _duration_fmt
+
 db_lock = threading.Lock()
 users_file_lock = threading.Lock()
 executor = ThreadPoolExecutor(max_workers=4)
@@ -410,6 +430,22 @@ def get_running_container(client, name, wait_timeout=30):
 def validate_email(email):
     if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email):
         raise ValueError("Email inválido")
+
+
+def maildir_size_fmt(email: str) -> str:
+    """Return human-readable total size of the user's mail directory."""
+    user_root = MAIL_ROOT / email
+    if not user_root.exists():
+        return "0 B"
+    try:
+        total = sum(f.stat().st_size for f in user_root.rglob("*") if f.is_file())
+    except OSError:
+        return "?"
+    for unit in ("B", "KB", "MB", "GB", "TB"):
+        if total < 1024:
+            return f"{total:.1f} {unit}" if unit != "B" else f"{total} {unit}"
+        total /= 1024
+    return f"{total:.1f} PB"
 
 
 def ensure_maildir(email):
@@ -826,7 +862,7 @@ def handle_db_integrity_error(_exc):
 @login_required
 def index():
     db = get_db()
-    accounts = db.execute(
+    accounts_raw = db.execute(
         """
         SELECT a.*,
           (SELECT COUNT(*) FROM source_accounts s WHERE s.local_account_id = a.id) AS source_count
@@ -834,7 +870,29 @@ def index():
         ORDER BY a.created_at DESC
         """
     ).fetchall()
-    sources = db.execute(
+
+    # Last sync per account (max finished_at from source_runs)
+    last_sync_rows = db.execute(
+        """
+        SELECT s.local_account_id, MAX(r.finished_at) AS last_sync
+        FROM source_runs r
+        JOIN source_accounts s ON s.id = r.source_id
+        WHERE r.finished_at IS NOT NULL
+        GROUP BY s.local_account_id
+        """
+    ).fetchall()
+    last_sync_map = {row["local_account_id"]: row["last_sync"] for row in last_sync_rows}
+
+    # Build enriched account dicts (sqlite3.Row is read-only, so convert to dict)
+    accounts = []
+    for row in accounts_raw:
+        a = dict(row)
+        a["maildir_size"] = maildir_size_fmt(a["email"])
+        raw_sync = last_sync_map.get(a["id"])
+        a["last_sync"] = raw_sync[:16].replace("T", " ") if raw_sync else None
+        accounts.append(a)
+
+    sources_raw = db.execute(
         """
         SELECT s.*, a.email AS local_email,
           (
@@ -848,6 +906,7 @@ def index():
         ORDER BY s.id DESC
         """
     ).fetchall()
+    sources = [dict(row) for row in sources_raw]
     runs = db.execute(
         """
         SELECT r.*, s.source_name, a.email AS local_email
@@ -866,6 +925,23 @@ def index():
         roundcube_test_url=ROUND_CUBE_TEST_URL,
         roundcube_prod_url=ROUND_CUBE_PROD_URL,
     )
+
+
+@app.get("/logs")
+@login_required
+def logs_page():
+    db = get_db()
+    runs = db.execute(
+        """
+        SELECT r.*, s.source_name, s.source_host, a.email AS local_email
+        FROM source_runs r
+        JOIN source_accounts s ON s.id = r.source_id
+        JOIN local_accounts a ON a.id = r.local_account_id
+        ORDER BY r.started_at DESC
+        LIMIT 200
+        """
+    ).fetchall()
+    return render_template("logs.html", runs=runs)
 
 
 @app.post("/accounts")

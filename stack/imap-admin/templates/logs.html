@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Mail Archive — Logs</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"/>
+</head>
+<body>
+<div class="app">
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+      <div class="flash-bar {{ category }}">{{ message }}</div>
+    {% endfor %}
+  {% endwith %}
+
+  <!-- Topbar -->
+  <header class="topbar">
+    <div class="topbar-brand">Mail Archive <span>/ admin</span></div>
+    <nav class="topbar-nav">
+      <a class="nav-link" href="/">Contas</a>
+      <a class="nav-link active" href="/logs">Logs</a>
+    </nav>
+    <div class="topbar-actions">
+      <form method="post" action="/dovecot/reload">
+        <button class="btn btn-ghost btn-sm" type="submit" title="Executa doveadm reload no container">Reload Dovecot</button>
+      </form>
+      <form method="post" action="/logout">
+        <button class="btn btn-ghost btn-sm" type="submit">Sair</button>
+      </form>
+    </div>
+  </header>
+
+  <main class="main">
+
+    <div class="section-header">
+      <span class="section-title">Histórico de sincronizações</span>
+      <span class="badge badge-neutral">últimas {{ runs|length }}</span>
+    </div>
+
+    {% if not runs %}
+    <div class="empty-state">Nenhuma sincronização encontrada.</div>
+    {% else %}
+    <div class="logs-table-wrap">
+      <table class="logs-table">
+        <thead>
+          <tr>
+            <th>Início</th>
+            <th>Conta local</th>
+            <th>Source</th>
+            <th>Status</th>
+            <th>Trigger</th>
+            <th>Duração</th>
+            <th>Exit</th>
+            <th>Log</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in runs %}
+          <tr>
+            <td class="td-mono">{{ r.started_at[:16].replace('T',' ') if r.started_at else '—' }}</td>
+            <td>{{ r.local_email }}</td>
+            <td>{{ r.source_name }}</td>
+            <td>
+              {% if r.status == 'success' %}
+                <span class="badge badge-success">sucesso</span>
+              {% elif r.status == 'running' %}
+                <span class="badge badge-running">executando</span>
+              {% elif r.status == 'fail' %}
+                <span class="badge badge-fail">falha</span>
+              {% else %}
+                <span class="badge badge-neutral">{{ r.status or '—' }}</span>
+              {% endif %}
+            </td>
+            <td>{{ r.trigger or '—' }}</td>
+            <td class="td-mono">{{ duration_fmt(r.started_at, r.finished_at) }}</td>
+            <td class="td-mono">{{ r.exit_code if r.exit_code is not none else '—' }}</td>
+            <td>
+              {% if r.log_file %}
+                <a class="btn btn-ghost btn-sm" href="/runs/{{ r.id }}/log" target="_blank">Ver log</a>
+              {% else %}
+                —
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+
+  </main>
+</div>
+</body>
+</html>
