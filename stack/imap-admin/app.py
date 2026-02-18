@@ -9,6 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from functools import wraps
 from pathlib import Path
+from typing import Optional
 
 import docker
 from docker.errors import APIError, NotFound
@@ -55,7 +56,7 @@ app = Flask(__name__)
 app.secret_key = FLASK_SECRET_KEY or os.urandom(32)
 
 
-def _duration_fmt(started: str | None, finished: str | None) -> str:
+def _duration_fmt(started: Optional[str], finished: Optional[str]) -> str:
     """Return human-readable duration like '2m 34s'."""
     if not started or not finished:
         return "—"
@@ -432,7 +433,7 @@ def validate_email(email):
         raise ValueError("Email inválido")
 
 
-def maildir_size_fmt(email: str) -> str:
+def maildir_size_fmt(email: str) -> str:  # noqa: E501
     """Return human-readable total size of the user's mail directory."""
     user_root = MAIL_ROOT / email
     if not user_root.exists():
